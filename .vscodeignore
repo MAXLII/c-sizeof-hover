@@ -8,6 +8,7 @@ webpack.config.js
 tsconfig.json
 package-lock.json
 build.bat
+build.ps1
 docs/
 **/*.map
 .DS_Store
