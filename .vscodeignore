@@ -6,5 +6,9 @@ src/
 test-data/
 webpack.config.js
 tsconfig.json
+package-lock.json
+build.bat
+docs/
 **/*.map
 .DS_Store
+Thumbs.db
