@@ -323,9 +323,14 @@ export class CTypeParser {
   }
 
   private processTypedef(block: string): void {
-    // Match: typedef <type> <alias>;  ([\s\S] for multi-line types like struct { ... })
-    const tdRe = /^typedef\s+([\s\S]+?)\s+(\w+)\s*$/;
-    const match = block.match(tdRe);
+    // Match: typedef <type> <alias>;
+    let tdRe = /^typedef\s+([\s\S]+?)\s+(\w+)\s*$/;
+    let match = block.match(tdRe);
+    if (!match) {
+      // Handle "}alias" without space after closing brace
+      tdRe = /^typedef\s+([\s\S]+?\})\s*(\w+)\s*$/;
+      match = block.match(tdRe);
+    }
     if (!match) return;
 
     const [, typeStr, alias] = match;
