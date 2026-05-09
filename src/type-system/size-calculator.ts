@@ -144,24 +144,70 @@ function calculateStructSize(
   let totalSize = 0;
   let maxAlignment = 1;
 
+  // Bit-field packing state
+  let bfUnitStart = 0;      // byte offset where current bit-field unit started
+  let bfBitsUsed = 0;       // bits consumed in current unit
+  let bfUnitBytes = 0;      // size of current unit in bytes
+  let bfUnitAlign = 1;      // alignment of current unit
+  let bfBaseName = '';      // base type name of current unit
+
   for (const member of type.members) {
     if (member.bitField) {
-      // Bit fields are packed into the base type; skip size calculation
-      // for simplicity, we treat the bit field as the base type size contribution
       const baseSz = calcSize(member.bitField.baseType, config, visited);
-      if (baseSz) {
-        const align = baseSz.alignment;
-        if (!type.isPacked && align > 0) {
-          const padding = alignUp(totalSize, align) - totalSize;
-          member.offset = totalSize + padding;
-          totalSize += padding;
-        } else {
-          member.offset = totalSize;
+      if (!baseSz) continue;
+
+      const unitBits = baseSz.size * 8;
+      const bitWidth = member.bitField.width;
+      const baseName = member.bitField.baseType.name ?? '';
+
+      // Determine if we need a new storage unit:
+      // - first bit-field in this run
+      // - zero-width field (C forces next field to new unit)
+      // - different base type
+      // - not enough room in current unit
+      const needNewUnit =
+        bfBitsUsed === 0 ||
+        bitWidth === 0 ||
+        baseName !== bfBaseName ||
+        (bfBitsUsed + bitWidth > unitBits);
+
+      if (needNewUnit) {
+        // Finalize current unit's contribution to struct size
+        if (bfBitsUsed > 0) {
+          totalSize = alignUp(totalSize, bfUnitAlign);
+          totalSize = bfUnitStart + bfUnitBytes;
         }
-        totalSize += baseSz.size;
-        if (!type.isPacked && align > maxAlignment) maxAlignment = align;
+
+        if (bitWidth === 0) {
+          // Zero-width: force next field to new unit, consume no bits,
+          // and does NOT contribute to struct alignment (no storage allocated).
+          bfBitsUsed = 0;
+          bfBaseName = '';
+          continue;
+        }
+
+        // Start new unit
+        const align = type.isPacked ? 1 : baseSz.alignment;
+        bfUnitStart = alignUp(totalSize, align);
+        bfBitsUsed = 0;
+        bfUnitBytes = baseSz.size;
+        bfUnitAlign = align;
+        bfBaseName = baseName;
+      }
+
+      member.offset = bfUnitStart;
+      bfBitsUsed += bitWidth;
+      if (!type.isPacked && baseSz.alignment > maxAlignment) {
+        maxAlignment = baseSz.alignment;
       }
       continue;
+    }
+
+    // Non-bit-field member: finalize any open bit-field unit
+    if (bfBitsUsed > 0) {
+      totalSize = bfUnitStart + bfUnitBytes;
+      bfBitsUsed = 0;
+      bfBaseName = '';
     }
 
     const memberResult = calcSize(member.type, config, visited);
@@ -181,6 +227,11 @@ function calculateStructSize(
     if (!type.isPacked && align > maxAlignment) {
       maxAlignment = align;
     }
+  }
+
+  // Finalize trailing bit-field unit
+  if (bfBitsUsed > 0) {
+    totalSize = bfUnitStart + bfUnitBytes;
   }
 
   // Trailing padding to struct alignment
