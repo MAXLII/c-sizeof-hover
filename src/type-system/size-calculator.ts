@@ -223,6 +223,8 @@ function calculateStructSize(
       member.offset = totalSize;
     }
 
+    member.type.size = memberResult.size;
+    member.type.alignment = memberResult.alignment;
     totalSize += memberResult.size;
     if (!type.isPacked && align > maxAlignment) {
       maxAlignment = align;
@@ -263,6 +265,8 @@ function calculateUnionSize(
     if (!memberResult) continue;
 
     member.offset = 0; // All union members start at offset 0
+    member.type.size = memberResult.size;
+    member.type.alignment = memberResult.alignment;
     if (memberResult.size > maxSize) maxSize = memberResult.size;
     if (memberResult.alignment > maxAlignment) maxAlignment = memberResult.alignment;
   }
