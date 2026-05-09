@@ -46,16 +46,21 @@ export function activate(context: vscode.ExtensionContext): void {
   // Create document cache
   documentCache = new DocumentCache();
 
-  // Register hover provider
-  const hoverProvider = vscode.languages.registerHoverProvider(
-    [
-      { scheme: 'file', language: 'c' },
-      { scheme: 'file', language: 'cpp' },
-    ],
-    new CSizeofHoverProvider(documentCache),
-  );
-  context.subscriptions.push(hoverProvider);
-  outputChannel.appendLine('Hover provider registered for C files.');
+  // Delay registration so built-in hover providers are registered first.
+  // This ensures our sizeof info appears after other hover content.
+  const registerHover = () => {
+    const hoverProvider = vscode.languages.registerHoverProvider(
+      [
+        { scheme: 'file', language: 'c' },
+        { scheme: 'file', language: 'cpp' },
+      ],
+      new CSizeofHoverProvider(documentCache),
+    );
+    context.subscriptions.push(hoverProvider);
+    outputChannel.appendLine('Hover provider registered for C files.');
+  };
+  const timer = setTimeout(registerHover, 200);
+  context.subscriptions.push({ dispose: () => clearTimeout(timer) });
 
   // Listen for document close to free cached data
   context.subscriptions.push(
