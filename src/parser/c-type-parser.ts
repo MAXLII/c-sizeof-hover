@@ -588,8 +588,8 @@ export class CTypeParser {
   private parseFieldDeclarations(body: string): StructMember[] {
     const members: StructMember[] = [];
 
-    // Split body by semicolons
-    const fields = body.split(';').map(f => f.trim()).filter(f => f.length > 0);
+    // Split body by top-level semicolons (respecting {} nesting)
+    const fields = this.splitTopLevelSemicolons(body);
 
     for (const field of fields) {
       // Check for bit field: type name : width
@@ -605,6 +605,16 @@ export class CTypeParser {
           offset: 0,
           bitField: { width, baseType },
         });
+        continue;
+      }
+
+      // Check for nested struct/union (before splitTypeAndDeclarators,
+      // since nested struct/union bodies contain semicolons that confuse it)
+      const nestedMembers = this.tryParseNestedStructOrUnion(field);
+      if (nestedMembers) {
+        for (const nm of nestedMembers) {
+          members.push(nm);
+        }
         continue;
       }
 
@@ -624,23 +634,135 @@ export class CTypeParser {
         }
         continue;
       }
-
-      // Nested struct/union
-      const nestedRe = /(struct|union)\s*(?:\w+)?\s*\{([^}]*)\}/;
-      const nestedMatch = field.match(nestedRe);
-      if (nestedMatch) {
-        const nestedBody = nestedMatch[2];
-        const nestedMembers = this.parseFieldDeclarations(nestedBody);
-        const nestedType: ResolvedType = {
-          kind: nestedMatch[1] === 'struct' ? TypeKind.Struct : TypeKind.Union,
-          members: nestedMembers,
-        };
-        members.push({ name: '', type: nestedType, offset: 0 });
-        continue;
-      }
     }
 
     return members;
+  }
+
+  /**
+   * Split text on semicolons that are at brace depth 0.
+   */
+  private splitTopLevelSemicolons(body: string): string[] {
+    const fields: string[] = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < body.length; i++) {
+      const ch = body[i];
+      if (ch === '{') {
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+      } else if (ch === ';' && depth === 0) {
+        const field = body.substring(start, i).trim();
+        if (field.length > 0) {
+          fields.push(field);
+        }
+        start = i + 1;
+      }
+    }
+    return fields;
+  }
+
+  /**
+   * Find the matching '}' for a '{' at openIndex, respecting nesting.
+   */
+  private findMatchingBrace(text: string, openIndex: number): number {
+    let depth = 0;
+    for (let i = openIndex; i < text.length; i++) {
+      if (text[i] === '{') {
+        depth++;
+      } else if (text[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * Try to parse a nested struct/union declaration like:
+   *   struct { int a; } foo;
+   *   union { int x; char y; } bar;
+   *   struct tag { ... } name;
+   * Handles nested braces in the struct body.
+   *
+   * @returns StructMember[] to add to parent, or null if no match.
+   *          May return multiple members for C11 anonymous struct/union flattening.
+   */
+  private tryParseNestedStructOrUnion(field: string): StructMember[] | null {
+    const keywordMatch = field.match(/^\s*(struct|union)\b/);
+    if (!keywordMatch) {
+      return null;
+    }
+
+    const kind = keywordMatch[1];
+    const afterKeyword = field.substring(keywordMatch[0].length);
+    const tagNameMatch = afterKeyword.match(/^\s*(\w+)\s*\{/);
+
+    let bodyStart: number;
+    let tagName: string | undefined;
+
+    if (tagNameMatch) {
+      tagName = tagNameMatch[1];
+      bodyStart = keywordMatch[0].length + tagNameMatch[0].length - 1; // index of '{'
+    } else {
+      bodyStart = field.indexOf('{');
+      if (bodyStart < 0) {
+        return null;
+      }
+    }
+
+    const closeBraceIdx = this.findMatchingBrace(field, bodyStart);
+    if (closeBraceIdx < 0) {
+      return null;
+    }
+
+    const nestedBody = field.substring(bodyStart + 1, closeBraceIdx).trim();
+    const afterBrace = field.substring(closeBraceIdx + 1).trim();
+
+    // Parse declarators after closing brace (member name(s))
+    const declarators = afterBrace ? this.splitDeclarators(afterBrace) : [];
+    const nestedMembers = this.parseFieldDeclarations(nestedBody);
+
+    const isPacked = this.currentPackAlignment === 1;
+    const nestedType: ResolvedType = {
+      kind: kind === 'struct' ? TypeKind.Struct : TypeKind.Union,
+      name: tagName,
+      members: nestedMembers,
+      isPacked,
+    };
+
+    // Register tag if present
+    if (tagName) {
+      if (kind === 'struct') {
+        this.structDefs.set(tagName, nestedType);
+      } else {
+        this.unionDefs.set(tagName, nestedType);
+      }
+    }
+
+    if (declarators.length === 0) {
+      // Anonymous struct/union with no declarator (C11 anonymous member).
+      // Flatten: return all nested members so they become direct members of parent.
+      return nestedMembers.map(n => ({ ...n, offset: 0 }));
+    }
+
+    const result: StructMember[] = [];
+    for (const decl of declarators) {
+      const { name, type: declType } = this.parseDeclarator(nestedType, decl);
+      if (name) {
+        result.push({ name, type: declType, offset: 0 });
+      }
+    }
+
+    if (result.length === 0) {
+      // Fallback: anonymous struct member
+      result.push({ name: '', type: nestedType, offset: 0 });
+    }
+
+    return result;
   }
 
   private splitTypeAndDeclarators(field: string): { typeStr: string; declStr: string } | null {

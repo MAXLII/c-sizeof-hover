@@ -185,8 +185,9 @@ export function formatTypeName(type: ResolvedType): string {
 
 /**
  * Format a struct/union member layout as a text table.
+ * Recursively displays nested struct/union members.
  */
-export function formatStructLayout(type: ResolvedType): string {
+export function formatStructLayout(type: ResolvedType, baseOffset: number = 0, indent: string = ''): string {
   if (!type.members || type.members.length === 0) {
     return '(empty)';
   }
@@ -195,10 +196,14 @@ export function formatStructLayout(type: ResolvedType): string {
   const kind = type.kind === TypeKind.Union ? 'union' : 'struct';
   const totalSize = type.size ?? 0;
 
-  lines.push(`${kind} ${type.name || '(anonymous)'} {`);
+  // Only show the header for the outermost type
+  if (indent === '') {
+    lines.push(`${kind} ${type.name || '(anonymous)'} {`);
+  }
 
   for (const member of type.members) {
-    let line = `  offset ${String(member.offset).padStart(3)}: `;
+    const absOffset = baseOffset + member.offset;
+    let line = `${indent}  offset ${String(absOffset).padStart(3)}: `;
     const typeName = formatTypeName(member.type);
 
     if (member.bitField) {
@@ -207,16 +212,41 @@ export function formatStructLayout(type: ResolvedType): string {
       line += `${typeName} ${member.name}`;
     }
 
-    if (member.type.size !== undefined) {
-      line += `  (${member.type.size} bytes)`;
-    }
+    // Check if this member is a struct/union with its own members to expand
+    const resolved = resolveThroughTypedefs(member.type);
+    const hasNestedMembers = (resolved.kind === TypeKind.Struct || resolved.kind === TypeKind.Union)
+      && resolved.members && resolved.members.length > 0;
 
-    lines.push(line);
+    if (hasNestedMembers) {
+      if (member.type.size !== undefined) {
+        line += ` {`;
+      }
+      lines.push(line);
+
+      // Recursively format nested members
+      if (resolved.members) {
+        const nestedLayout = formatStructLayout(resolved, absOffset, indent + '  ');
+        if (nestedLayout !== '(empty)') {
+          lines.push(nestedLayout);
+        }
+      }
+
+      if (member.type.size !== undefined) {
+        lines.push(`${indent}  }  (${member.type.size} bytes)`);
+      }
+    } else {
+      if (member.type.size !== undefined) {
+        line += `  (${member.type.size} bytes)`;
+      }
+      lines.push(line);
+    }
   }
 
-  const alignment = type.alignment ?? 1;
-  lines.push(`}`);
-  lines.push(`// total: ${totalSize} bytes, alignment: ${alignment}`);
+  if (indent === '') {
+    const alignment = type.alignment ?? 1;
+    lines.push(`}`);
+    lines.push(`// total: ${totalSize} bytes, alignment: ${alignment}`);
+  }
 
   return lines.join('\n');
 }
