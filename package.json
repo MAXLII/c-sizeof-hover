@@ -1,0 +1,120 @@
+{
+  "name": "c-sizeof-hover",
+  "displayName": "C Sizeof Hover",
+  "description": "Shows sizeof value when hovering over C variables",
+  "version": "1.0.7",
+  "publisher": "maxli",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:c",
+    "onLanguage:cpp"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "C Sizeof Hover",
+      "properties": {
+        "c-sizeof-hover.pointerSize": {
+          "type": "number",
+          "default": 4,
+          "minimum": 2,
+          "maximum": 8,
+          "description": "Size of a pointer in bytes (4 for ARM 32-bit)"
+        },
+        "c-sizeof-hover.charSize": {
+          "type": "number",
+          "default": 1,
+          "description": "Size of char type in bytes"
+        },
+        "c-sizeof-hover.shortSize": {
+          "type": "number",
+          "default": 2,
+          "description": "Size of short type in bytes"
+        },
+        "c-sizeof-hover.intSize": {
+          "type": "number",
+          "default": 4,
+          "description": "Size of int type in bytes"
+        },
+        "c-sizeof-hover.longSize": {
+          "type": "number",
+          "default": 4,
+          "description": "Size of long type in bytes (4 on ARM ILP32, 8 on LP64)"
+        },
+        "c-sizeof-hover.longLongSize": {
+          "type": "number",
+          "default": 8,
+          "description": "Size of long long type in bytes"
+        },
+        "c-sizeof-hover.floatSize": {
+          "type": "number",
+          "default": 4,
+          "description": "Size of float type in bytes"
+        },
+        "c-sizeof-hover.doubleSize": {
+          "type": "number",
+          "default": 8,
+          "description": "Size of double type in bytes"
+        },
+        "c-sizeof-hover.longDoubleSize": {
+          "type": "number",
+          "default": 8,
+          "description": "Size of long double type in bytes (8 on ARM)"
+        },
+        "c-sizeof-hover.enumSize": {
+          "type": "number",
+          "default": 4,
+          "description": "Size of enum type in bytes"
+        },
+        "c-sizeof-hover.showAlignment": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show struct/union member offsets and alignment details on hover"
+        },
+        "c-sizeof-hover.showPadding": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show explicit padding bytes in struct layout"
+        },
+        "c-sizeof-hover.showTypedefChain": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the full typedef resolution chain"
+        },
+        "c-sizeof-hover.customTypeSizes": {
+          "type": "object",
+          "default": {},
+          "description": "Custom size overrides for specific types (key: type name, value: size in bytes)",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "c-sizeof-hover.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug logging to output channel"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "webpack --mode development",
+    "watch": "webpack --mode development --watch",
+    "vscode:prepublish": "webpack --mode production",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "ts-loader": "^9.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.0",
+    "webpack": "^5.95.0",
+    "webpack-cli": "^5.1.0"
+  }
+}
