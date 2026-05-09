@@ -2,7 +2,7 @@
   "name": "c-sizeof-hover",
   "displayName": "C Sizeof Hover",
   "description": "Shows sizeof value when hovering over C variables",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "publisher": "maxli",
   "repository": {
     "type": "git",
