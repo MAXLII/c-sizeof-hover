@@ -962,22 +962,15 @@ export class CTypeParser {
 
   private getWordAt(text: string, line: number, column: number): string | null {
     const lineStart = this.lineMap[line] ?? 0;
-    const pos = lineStart + column;
-    if (pos >= text.length) return null;
-
-    // Expand left to start of identifier
-    let start = pos;
-    while (start > 0 && /[\w]/.test(text[start - 1])) {
-      start--;
+    const lineEnd = text.indexOf('\n', lineStart);
+    const lineText = lineEnd === -1 ? text.substring(lineStart) : text.substring(lineStart, lineEnd);
+    const re = /[A-Za-z_]\w*/g;
+    let match;
+    while ((match = re.exec(lineText)) !== null) {
+      if (column >= match.index && column < match.index + match[0].length) {
+        return match[0];
+      }
     }
-
-    // Expand right to end of identifier
-    let end = pos;
-    while (end < text.length && /[\w]/.test(text[end])) {
-      end++;
-    }
-
-    const word = text.substring(start, end);
-    return word.length > 0 ? word : null;
+    return null;
   }
 }

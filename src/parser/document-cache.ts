@@ -230,8 +230,8 @@ export class DocumentCache {
   }
 
   private pathEndsWith(filePath: string, includeName: string): boolean {
-    const normalizedFile = this.normalizePath(filePath).toLowerCase();
-    const normalizedInclude = this.normalizePath(includeName).toLowerCase();
+    const normalizedFile = this.normalizePath(filePath).replace(/\\/g, '/').toLowerCase();
+    const normalizedInclude = this.normalizePath(includeName).replace(/\\/g, '/').toLowerCase();
     return normalizedFile.endsWith(normalizedInclude);
   }
 

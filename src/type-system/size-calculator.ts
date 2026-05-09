@@ -56,11 +56,7 @@ export function calculateSize(type: ResolvedType, config: PrimitiveSizeConfig): 
 }
 
 function calcSize(type: ResolvedType, config: PrimitiveSizeConfig, visited: Set<string>): SizeResult | undefined {
-  // Circular reference guard (only for types that can be self-referential)
-  const canBeCircular = type.kind === TypeKind.Struct
-    || type.kind === TypeKind.Union
-    || type.kind === TypeKind.Typedef;
-  const key = canBeCircular ? typeKey(type) : undefined;
+  const key = (type.kind === TypeKind.Struct || type.kind === TypeKind.Union || type.kind === TypeKind.Typedef) ? typeKey(type) : undefined;
   if (key && visited.has(key)) {
     return undefined;
   }
@@ -68,68 +64,62 @@ function calcSize(type: ResolvedType, config: PrimitiveSizeConfig, visited: Set<
     visited.add(key);
   }
 
-  let result: SizeResult | undefined;
+  return handleTypeKind(type, config, visited, key);
+}
 
+function handleTypeKind(
+  type: ResolvedType,
+  config: PrimitiveSizeConfig,
+  visited: Set<string>,
+  key: string | undefined,
+): SizeResult | undefined {
   switch (type.kind) {
     case TypeKind.Void:
-      result = undefined;
-      break;
+      return undefined;
 
     case TypeKind.Primitive: {
       const custom = type.name ? getCustomTypeSize(type.name, config) : undefined;
       const sz = custom ?? (type.name ? getPrimitiveSize(type.name, config) : undefined);
-      result = sz !== undefined ? { size: sz, alignment: sz } : undefined;
-      break;
+      return sz !== undefined ? { size: sz, alignment: sz } : undefined;
     }
 
     case TypeKind.Pointer:
-      result = { size: getPointerSize(config), alignment: getPointerAlignment(config) };
-      break;
+      return { size: getPointerSize(config), alignment: getPointerAlignment(config) };
 
     case TypeKind.Array: {
-      if (!type.elementType) { result = undefined; break; }
+      if (!type.elementType) return undefined;
       const elem = calcSize(type.elementType, config, visited);
-      if (!elem || type.elementCount === undefined) { result = undefined; break; }
-      result = { size: elem.size * type.elementCount, alignment: elem.alignment };
-      break;
+      if (!elem || type.elementCount === undefined) return undefined;
+      return { size: elem.size * type.elementCount, alignment: elem.alignment };
     }
 
     case TypeKind.Struct:
-      result = calculateStructSize(type, config, visited);
-      break;
+      return calculateStructSize(type, config, visited);
 
     case TypeKind.Union:
-      result = calculateUnionSize(type, config, visited);
-      break;
+      return calculateUnionSize(type, config, visited);
 
     case TypeKind.Enum:
-      result = { size: getEnumSize(config), alignment: getEnumAlignment(config) };
-      break;
+      return { size: getEnumSize(config), alignment: getEnumAlignment(config) };
 
     case TypeKind.Typedef: {
-      if (!type.aliasFor) { result = undefined; break; }
+      if (!type.aliasFor) return undefined;
       const resolved = calcSize(type.aliasFor, config, visited);
-      if (!resolved) { result = undefined; break; }
-      // If the typedef itself has a declaredSize (from config), use it
+      if (!resolved) return undefined;
       if (type.declaredSize !== undefined) {
         resolved.size = type.declaredSize;
       }
-      result = resolved;
-      break;
+      return resolved;
     }
 
     case TypeKind.Function:
-      result = { size: getPointerSize(config), alignment: getPointerAlignment(config) };
-      break;
+      return { size: getPointerSize(config), alignment: getPointerAlignment(config) };
 
     case TypeKind.Incomplete:
     case TypeKind.Unknown:
     default:
-      result = undefined;
-      break;
+      return undefined;
   }
-
-  return result;
 }
 
 function calculateStructSize(

@@ -60,45 +60,53 @@ export function resolveThroughTypedefs(
 }
 
 /**
- * Look up a variable name in the symbol table, respecting scope.
- * Searches from currentScope up through parent scopes.
+ * Look up a symbol by name in the symbol table.
+ * Returns the type if found, null otherwise.
  */
-export function lookupVariable(
+function lookupInSymbolTable(
   name: string,
   symbolTable: DocumentSymbolTable,
-  scope: { row: number; column: number },
 ): ResolvedType | null {
-  // Search nested scopes (function local) — for now, search global
-  // TODO: scope-aware lookup based on row/column
+  const builtin = symbolTable.builtinTypes.get(name);
+  if (builtin) return builtin;
 
-  // Check global scope
-  const entry = symbolTable.globalScope.symbols.get(name);
-  if (entry && entry.kind === SymbolKind.Variable) {
-    return entry.type;
-  }
+  const td = symbolTable.typedefs.get(name);
+  if (td) return td;
 
-  // Check enum constants
-  const enumEntry = symbolTable.globalScope.symbols.get(name);
-  if (enumEntry && enumEntry.kind === SymbolKind.EnumConstant) {
-    return enumEntry.type;
-  }
-
-  // Check struct/union tags
   const structDef = symbolTable.structDefinitions.get(name);
   if (structDef) return structDef;
 
   const unionDef = symbolTable.unionDefinitions.get(name);
   if (unionDef) return unionDef;
 
-  // Check typedefs
-  const td = symbolTable.typedefs.get(name);
-  if (td) return td;
-
-  // Check builtin types
-  const builtin = symbolTable.builtinTypes.get(name);
-  if (builtin) return builtin;
+  const sym = symbolTable.globalScope.symbols.get(name);
+  if (sym) return sym.type;
 
   return null;
+}
+
+/**
+ * Look up a variable name in the symbol table, respecting scope.
+ * Searches from currentScope up through parent scopes.
+ */
+export function lookupVariable(
+  name: string,
+  symbolTable: DocumentSymbolTable,
+  _scope: { row: number; column: number },
+): ResolvedType | null {
+  // Check global scope variables
+  const entry = symbolTable.globalScope.symbols.get(name);
+  if (entry?.kind === SymbolKind.Variable) {
+    return entry.type;
+  }
+
+  // Check enum constants
+  const enumEntry = symbolTable.globalScope.symbols.get(name);
+  if (enumEntry?.kind === SymbolKind.EnumConstant) {
+    return enumEntry.type;
+  }
+
+  return lookupInSymbolTable(name, symbolTable);
 }
 
 /**
@@ -108,27 +116,7 @@ export function resolveTypeName(
   name: string,
   symbolTable: DocumentSymbolTable,
 ): ResolvedType | null {
-  // Check builtin first
-  const builtin = symbolTable.builtinTypes.get(name);
-  if (builtin) return builtin;
-
-  // Check typedefs
-  const td = symbolTable.typedefs.get(name);
-  if (td) return td;
-
-  // Check struct tags
-  const structDef = symbolTable.structDefinitions.get(name);
-  if (structDef) return structDef;
-
-  // Check union tags
-  const unionDef = symbolTable.unionDefinitions.get(name);
-  if (unionDef) return unionDef;
-
-  // Check global symbols (variables, enum tags)
-  const sym = symbolTable.globalScope.symbols.get(name);
-  if (sym) return sym.type;
-
-  return null;
+  return lookupInSymbolTable(name, symbolTable);
 }
 
 /**
@@ -178,9 +166,21 @@ export function formatTypeName(type: ResolvedType): string {
     case TypeKind.Incomplete:
       return `(incomplete: ${resolved.name || ''})`;
 
+    case TypeKind.Unknown:
     default:
       return resolved.name || '(unknown)';
   }
+}
+
+export function isUnknownType(type: ResolvedType): boolean {
+  return type.kind === TypeKind.Unknown || type.kind === TypeKind.Incomplete;
+}
+
+export function getUnknownTypeLabel(type: ResolvedType): string {
+  if (type.kind === TypeKind.Incomplete) {
+    return `(incomplete: ${type.name || ''})`;
+  }
+  return type.name || '(unknown)';
 }
 
 /**

@@ -39,6 +39,7 @@ import {
   resolveThroughTypedefs,
   formatTypeName,
   formatStructLayout,
+  isUnknownType,
 } from './type-system/type-resolver';
 import { calculateSize, formatBytes } from './type-system/size-calculator';
 import { ExtensionConfig, readConfig } from './config';
@@ -120,11 +121,7 @@ export class CSizeofHoverProvider implements vscode.HoverProvider {
 
     if (!sizeResult) {
       const typeName = formatTypeName(resolvedType);
-      if (
-        resolvedType.kind === TypeKind.Unknown ||
-        typeName === '(unknown)' ||
-        typeName.startsWith('(incomplete')
-      ) {
+      if (isUnknownType(resolvedType) || typeName === '(unknown)' || typeName.startsWith('(incomplete')) {
         return null;
       }
       const md = new vscode.MarkdownString(`*(incomplete type)* \`${typeName}\``);
@@ -377,7 +374,7 @@ export class CSizeofHoverProvider implements vscode.HoverProvider {
     const chain: string[] = [];
     let current: ResolvedType | undefined = type;
 
-    while (current && current.kind === TypeKind.Typedef) {
+    while (current?.kind === TypeKind.Typedef) {
       chain.push(`\`${current.name || '(anonymous)'}\``);
       current = current.aliasFor;
     }
