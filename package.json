@@ -4,6 +4,11 @@
   "description": "Shows sizeof value when hovering over C variables",
   "version": "1.0.7",
   "publisher": "maxli",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maxli/c-sizeof-hover"
+  },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -107,7 +112,7 @@
     "compile": "webpack --mode development",
     "watch": "webpack --mode development --watch",
     "vscode:prepublish": "webpack --mode production",
-    "package": "vsce package"
+    "package": "@vscode/vsce package"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",
